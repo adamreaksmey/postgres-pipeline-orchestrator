@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import { Pool, PoolClient } from 'pg';
 
 const LOCK_PREFIX = 'deploy:';
+
+/**
+ * sticking with a raw pg client - no TypeORM.
+ * keeps the code simple, avoids unnecessary abstraction,
+ * and makes advisory locks predictable. For deployment locks,
+ * I want as little overhead as possible.
+ */
 
 export interface AcquireResult {
   acquired: boolean;
@@ -15,7 +23,18 @@ export interface AcquireResult {
  */
 @Injectable()
 export class DeploymentLockService {
-  constructor(private readonly dataSource: DataSource) {}
+  private pool: Pool | null = null;
+
+  constructor(private readonly configService: ConfigService) {}
+
+  private getPool(): Pool {
+    if (!this.pool) {
+      this.pool = new Pool({
+        connectionString: this.configService.getOrThrow<string>('DATABASE_URL'),
+      });
+    }
+    return this.pool;
+  }
 
   /**
    * Try to acquire the deploy lock for an environment (e.g. 'production', 'staging').
@@ -27,33 +46,40 @@ export class DeploymentLockService {
    */
   async tryAcquire(environment: string): Promise<AcquireResult> {
     const key = LOCK_PREFIX + environment;
-    const runner = this.dataSource.createQueryRunner();
-    await runner.connect();
+    const pool = this.getPool();
+    const client: PoolClient = await pool.connect();
 
     try {
-      const result = await runner.query(`SELECT pg_try_advisory_lock(hashtext($1)) AS "acquired"`, [
-        key,
-      ]);
-
-      const acquired = Boolean(result[0]?.acquired);
+      const result = await client.query<{ acquired: boolean }>(
+        `SELECT pg_try_advisory_lock(hashtext($1)) AS "acquired"`,
+        [key],
+      );
+      const acquired = Boolean(result.rows[0]?.acquired);
 
       if (!acquired) {
-        await runner.release();
+        client.release();
         return { acquired: false, release: async () => {} };
       }
 
       const release = async (): Promise<void> => {
         try {
-          await runner.query(`SELECT pg_advisory_unlock(hashtext($1))`, [key]);
+          await client.query(`SELECT pg_advisory_unlock(hashtext($1))`, [key]);
         } finally {
-          await runner.release();
+          client.release();
         }
       };
 
       return { acquired: true, release };
     } catch (err) {
-      await runner.release();
+      client.release();
       throw err;
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (this.pool) {
+      await this.pool.end();
+      this.pool = null;
     }
   }
 }

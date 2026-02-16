@@ -1,0 +1,15 @@
+# Live reload for local dev: only api runs in watch mode with mounted source.
+# Run: docker compose up
+# Rebuild api when package.json changes: docker compose up --build api
+services:
+  api:
+    build:
+      context: .
+      target: development
+    command: npm run start:dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      DATABASE_URL: postgresql://admin:password@postgres:5432/cicd
+      SYNC_DATABASE: 'true'
