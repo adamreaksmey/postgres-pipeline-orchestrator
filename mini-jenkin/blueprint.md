@@ -42,6 +42,7 @@
 ### **Core Tables**
 
 #### 1. **pipelines** (Pipeline definitions)
+
 ```sql
 CREATE TABLE pipelines (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -54,6 +55,7 @@ CREATE TABLE pipelines (
 ```
 
 #### 2. **pipeline_runs** (Execution instances)
+
 ```sql
 CREATE TABLE pipeline_runs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -71,6 +73,7 @@ CREATE INDEX idx_pipeline_runs_created ON pipeline_runs(created_at DESC);
 ```
 
 #### 3. **jobs** (Individual job queue - THE OUTBOX)
+
 ```sql
 CREATE TABLE jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -80,31 +83,32 @@ CREATE TABLE jobs (
     command TEXT NOT NULL,
     status VARCHAR(50) DEFAULT 'pending', -- pending, running, success, failed
     priority INTEGER DEFAULT 5, -- Higher = more urgent
-    
+
     -- Distributed queue fields
     claimed_by VARCHAR(100), -- worker_id
     claimed_at TIMESTAMPTZ,
     heartbeat_at TIMESTAMPTZ, -- For detecting dead workers
-    
+
     -- Retry logic
     retry_count INTEGER DEFAULT 0,
     max_retries INTEGER DEFAULT 3,
-    
+
     -- Results
     exit_code INTEGER,
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
-    
+
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_jobs_queue ON jobs(status, priority DESC, created_at) 
+CREATE INDEX idx_jobs_queue ON jobs(status, priority DESC, created_at)
     WHERE status = 'pending';
-CREATE INDEX idx_jobs_heartbeat ON jobs(heartbeat_at) 
+CREATE INDEX idx_jobs_heartbeat ON jobs(heartbeat_at)
     WHERE status = 'running';
 ```
 
 #### 4. **job_logs** (Partitioned by time)
+
 ```sql
 CREATE TABLE job_logs (
     id BIGSERIAL,
@@ -125,6 +129,7 @@ CREATE INDEX idx_job_logs_job ON job_logs(job_id, timestamp DESC);
 ```
 
 #### 5. **deployment_locks** (Prevent concurrent deploys)
+
 ```sql
 CREATE TABLE deployment_locks (
     environment VARCHAR(100) PRIMARY KEY, -- 'production', 'staging'
@@ -137,18 +142,19 @@ CREATE INDEX idx_deployment_locks_expires ON deployment_locks(expires_at);
 ```
 
 #### 6. **webhooks_outbox** (Notification queue)
+
 ```sql
 CREATE TABLE webhooks_outbox (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_type VARCHAR(100) NOT NULL, -- 'pipeline.completed', 'job.failed'
     payload JSONB NOT NULL,
     webhook_url TEXT NOT NULL,
-    
+
     status VARCHAR(50) DEFAULT 'pending',
     retry_count INTEGER DEFAULT 0,
     max_retries INTEGER DEFAULT 5,
     next_retry_at TIMESTAMPTZ DEFAULT NOW(),
-    
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     processed_at TIMESTAMPTZ
 );
@@ -162,9 +168,10 @@ CREATE INDEX idx_webhooks_queue ON webhooks_outbox(status, next_retry_at)
 ### **Materialized Views (Replace Redis Cache)**
 
 #### Build statistics dashboard
+
 ```sql
 CREATE MATERIALIZED VIEW pipeline_stats AS
-SELECT 
+SELECT
     p.id AS pipeline_id,
     p.name,
     COUNT(pr.id) AS total_runs,
@@ -193,10 +200,11 @@ $$ LANGUAGE plpgsql;
 ## **Key PostgreSQL Features Used**
 
 ### 1. **Job Queue with SKIP LOCKED**
+
 ```sql
 -- Worker claims next job atomically
 UPDATE jobs
-SET 
+SET
     status = 'running',
     claimed_by = 'worker-123',
     claimed_at = NOW(),
@@ -212,6 +220,7 @@ RETURNING *;
 ```
 
 ### 2. **Advisory Locks for Deployments**
+
 ```sql
 -- Try to acquire lock for production deploy
 SELECT pg_try_advisory_lock(hashtext('deploy:production'));
@@ -221,6 +230,7 @@ SELECT pg_try_advisory_lock(hashtext('deploy:production'));
 ```
 
 ### 3. **LISTEN/NOTIFY for Real-time Logs**
+
 ```sql
 -- Worker inserts log
 INSERT INTO job_logs (job_id, log_line) VALUES (...);
@@ -232,10 +242,11 @@ LISTEN job_logs;
 ```
 
 ### 4. **Dead Worker Detection**
+
 ```sql
 -- Reclaim jobs from dead workers (heartbeat > 30s old)
 UPDATE jobs
-SET 
+SET
     status = 'pending',
     claimed_by = NULL,
     claimed_at = NULL,
@@ -333,23 +344,28 @@ src/
 ## **Stress Test Scenarios**
 
 ### Scenario 1: High Throughput
+
 - 100 concurrent pipeline runs
 - 10 workers fighting for jobs
 - Verify: No duplicate job execution, all jobs complete
 
 ### Scenario 2: Worker Failures
+
 - Kill workers mid-job
 - Verify: Jobs get reclaimed and retry
 
 ### Scenario 3: Deploy Contention
+
 - 5 pipelines try to deploy to production simultaneously
 - Verify: Only 1 succeeds, others wait or fail gracefully
 
 ### Scenario 4: Log Ingestion
+
 - Stream 10,000 log lines/second
 - Verify: Dashboard receives real-time updates via LISTEN/NOTIFY
 
 ### Scenario 5: Webhook Reliability
+
 - Webhook endpoint goes down
 - Verify: Retries with exponential backoff, no message loss
 
@@ -358,6 +374,7 @@ src/
 ## **Metrics to Track**
 
 Dashboard should show:
+
 - **Queue depth**: Pending jobs count
 - **Worker utilization**: Active jobs / total workers
 - **Job latency**: Time from created → started
@@ -380,30 +397,30 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
-  
+
   api:
     build: .
     command: npm run start:api
     ports:
-      - "3000:3000"
+      - '3000:3000'
     depends_on:
       - postgres
-  
+
   worker-1:
     build: .
     command: npm run start:worker
     depends_on:
       - postgres
-  
+
   worker-2:
     build: .
     command: npm run start:worker
     depends_on:
       - postgres
-  
+
   worker-3:
     build: .
     command: npm run start:worker
