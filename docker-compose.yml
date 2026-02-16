@@ -20,6 +20,7 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://admin:password@postgres:5432/cicd
+      SYNC_DATABASE: "true"
       # POSTGRES_HOST: postgres
       # POSTGRES_PORT: 5432
       # POSTGRES_DB: cicd
@@ -34,6 +35,7 @@ services:
     command: npm run start:worker
     environment:
       DATABASE_URL: postgresql://admin:password@postgres:5432/cicd
+      SYNC_DATABASE: "false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,6 +45,7 @@ services:
     command: npm run start:worker
     environment:
       DATABASE_URL: postgresql://admin:password@postgres:5432/cicd
+      SYNC_DATABASE: "false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,6 +55,7 @@ services:
     command: npm run start:worker
     environment:
       DATABASE_URL: postgresql://admin:password@postgres:5432/cicd
+      SYNC_DATABASE: "false"
     depends_on:
       postgres:
         condition: service_healthy

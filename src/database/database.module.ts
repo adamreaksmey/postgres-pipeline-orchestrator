@@ -25,7 +25,8 @@ import {
           DeploymentLock,
           WebhookOutbox,
         ],
-        synchronize: true,
+        // Only one process should synchronize the database (see SYNC_DATABASE in docker compose file )
+        synchronize: config.get('SYNC_DATABASE') !== 'false',
       }),
       inject: [ConfigService],
     }),
