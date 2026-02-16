@@ -1,99 +1,133 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Mini-Jenkin — CI/CD Pipeline Orchestrator
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A lightweight CI/CD pipeline orchestrator built with **NestJS** and **PostgreSQL 17**. Pipelines, job queue, real-time logs, and deployment locking are all backed by PostgreSQL—no Redis or external message broker required.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Features
 
-## Description
+- **Git webhooks** — Trigger pipelines on push events
+- **Distributed job queue** — Workers claim jobs with `SELECT ... FOR UPDATE SKIP LOCKED`
+- **Real-time log streaming** — `LISTEN`/`NOTIFY` for live log updates in the dashboard
+- **Deployment locking** — Advisory locks prevent concurrent deploys to the same environment
+- **Retries & dead worker handling** — Heartbeats and reclaim for failed or stuck jobs
+- **Webhook outbox** — Reliable delivery of notifications (e.g. Slack/Discord) with retries
+- **Dashboard-ready metrics** — Materialized views for pipeline stats; full-text search on logs
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Tech Stack
 
-## Project setup
+| Layer        | Technology   |
+|-------------|--------------|
+| API         | NestJS       |
+| Database    | PostgreSQL 17|
+| Runtime     | Node.js      |
+| Orchestration | Docker Compose |
 
-```bash
-$ npm install
+## Architecture (High Level)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     API (NestJS)                            │
+│  Webhooks • Dashboard API • Manual triggers                 │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   PostgreSQL 17                             │
+│  Job queue (outbox) • LISTEN/NOTIFY • Advisory locks        │
+│  Materialized views • Partitioned logs • Full-text search   │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+        ┌────────────┼────────────┬────────────┐
+        ▼            ▼            ▼            ▼
+   Worker 1      Worker 2     Worker 3     Worker N
 ```
 
-## Compile and run the project
+See [blueprint.md](./blueprint.md) for the full architecture and schema.
 
-```bash
-# development
-$ npm run start
+## Getting Started
 
-# watch mode
-$ npm run start:dev
+### Prerequisites
 
-# production mode
-$ npm run start:prod
+- Docker & Docker Compose
+- Node.js 18+ (for local development without Docker)
+
+### Quick Start with Docker
+
+1. Clone the repo and enter the project:
+
+   ```bash
+   cd mini-jenkin
+   ```
+
+2. Start services (PostgreSQL + API + workers):
+
+   ```bash
+   docker compose up -d
+   ```
+
+3. API: **http://localhost:3000**
+
+### Environment
+
+PostgreSQL is configured in Docker Compose. For local runs, ensure:
+
+- `POSTGRES_DB=cicd`
+- `POSTGRES_USER=admin`
+- `POSTGRES_PASSWORD=password`
+- Default port: `5432`
+
+### Running Locally (without Docker)
+
+- Start PostgreSQL 17 (e.g. via Docker or local install).
+- Apply schema (see `blueprint.md` or `database/migrations`).
+- API: `npm run start:api`
+- Workers: `npm run start:worker` (run multiple instances to simulate multiple workers).
+
+## Project Structure
+
+```
+src/
+├── api/           # REST: pipelines, runs, git webhooks
+├── worker/        # Job claim loop, executor, heartbeat
+├── queue/         # Job queue + webhook outbox
+├── streaming/     # LISTEN/NOTIFY + SSE for logs
+├── locks/         # Deployment advisory locks
+└── database/      # Connection + migrations
 ```
 
-## Run tests
+Details and file names are in [blueprint.md](./blueprint.md).
 
-```bash
-# unit tests
-$ npm run test
+## How It Works (Example Flow)
 
-# e2e tests
-$ npm run test:e2e
+1. **Git push** → Webhook creates a `pipeline_run` and inserts **jobs** into the queue.
+2. **Workers** poll with `SELECT ... FOR UPDATE SKIP LOCKED`, claim a job, set `claimed_by` and `heartbeat_at`.
+3. **Execution** streams output into `job_logs` and sends `NOTIFY` for real-time UI.
+4. **Deploy jobs** use `pg_try_advisory_lock('deploy:production')` so only one production deploy runs at a time.
+5. **Completion** can enqueue a row in `webhooks_outbox` for Slack/Discord; a separate processor sends with retries.
 
-# test coverage
-$ npm run test:cov
-```
+## Stress & Reliability
 
-## Deployment
+The blueprint defines scenarios to validate:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+- High throughput (many runs, many workers, no duplicate execution)
+- Worker failures (reclaim and retry)
+- Deploy contention (single winner per environment)
+- Log volume (LISTEN/NOTIFY under load)
+- Webhook reliability (retries, no message loss)
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+See [blueprint.md](./blueprint.md) for the full list and SQL patterns.
 
-```bash
-$ npm install -g mau
-$ mau deploy
-```
+## Metrics (Dashboard)
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Target metrics to expose:
 
-## Resources
+- Queue depth (pending jobs)
+- Worker utilization (active jobs / workers)
+- Job latency (created → started)
+- Success rate and throughput (jobs/sec)
+- Deploy lock contention
 
-Check out a few resources that may come in handy when working with NestJS:
+Materialized view `pipeline_stats` and refresh strategy are described in the blueprint.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## Further Reading
 
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- **[blueprint.md](./blueprint.md)** — Full system design: schema, indexes, SQL patterns, NestJS layout, workflow, Docker Compose, and stress scenarios.
