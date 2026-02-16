@@ -2,7 +2,7 @@ import { Job } from 'src/database/entities/job.entity';
 import { DataSource } from 'typeorm';
 
 export class JobQueueService {
-  constructor(private dataSource: DataSource) {}
+  constructor(private readonly dataSource: DataSource) {}
 
   async insertNewJob(
     pipelineRunId: string,
@@ -24,5 +24,79 @@ export class JobQueueService {
     });
 
     return this.dataSource.manager.save(job);
+  }
+
+  async claimNextJob(workerId: string): Promise<Job | null> {
+    const result = await this.dataSource.query(
+      `
+      UPDATE jobs
+      SET claimed_by = $1,
+          claimed_at = NOW(),
+          heartbeat_at = NOW(),
+          status = 'running'
+      WHERE id = (
+        SELECT id
+        FROM jobs
+        WHERE status = 'pending'
+        ORDER BY priority DESC, created_at ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+      )
+      RETURNING *;
+      `,
+      [workerId],
+    );
+
+    return result[0] ?? null;
+  }
+
+  async updateHeartbeat(jobId: string) {
+    await this.dataSource.query(`UPDATE jobs SET heartbeat_at = NOW() WHERE id = $1`, [jobId]);
+  }
+
+  async markCompleted(jobId: string, exitCode: number) {
+    await this.dataSource.query(
+      `
+      UPDATE jobs
+      SET status = 'completed',
+          exit_code = $2,
+          completed_at = NOW()
+      WHERE id = $1
+      `,
+      [jobId, exitCode],
+    );
+  }
+
+  async markFailed(jobId: string, exitCode: number) {
+    await this.dataSource.query(
+      `
+      UPDATE jobs
+      SET status = CASE
+            WHEN retry_count + 1 >= max_retries THEN 'failed'
+            ELSE 'pending'
+          END,
+          retry_count = retry_count + 1,
+          exit_code = $2,
+          claimed_by = NULL,
+          claimed_at = NULL
+      WHERE id = $1
+      `,
+      [jobId, exitCode],
+    );
+  }
+
+  // reclaiming stuck jobs from dead workers
+  async reclaimStuckJobs(timeoutSeconds: number) {
+    await this.dataSource.query(
+      `
+      UPDATE jobs
+      SET status = 'pending',
+          claimed_by = NULL,
+          claimed_at = NULL
+      WHERE status = 'running'
+        AND heartbeat_at < NOW() - ($1 || ' seconds')::interval
+      `,
+      [timeoutSeconds],
+    );
   }
 }
