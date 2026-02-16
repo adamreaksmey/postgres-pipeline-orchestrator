@@ -85,7 +85,13 @@ export class JobQueueService {
     );
   }
 
-  // reclaiming stuck jobs from dead workers
+  /**
+   * reclaiming stuck jobs from dead workers.
+   * note for dev:
+   * basically how the heartbeat_at expiration works here is that if the heartbeat continues to beat
+   * outside of the allowed timeframe ( value determined by the timeoutSeconds parameter), then the job is considered dead.
+   * @param timeoutSeconds - the amount of time in seconds that the heartbeat is allowed to beat outside of the allowed timeframe.
+   */
   async reclaimStuckJobs(timeoutSeconds: number) {
     await this.dataSource.query(
       `
@@ -94,7 +100,7 @@ export class JobQueueService {
           claimed_by = NULL,
           claimed_at = NULL
       WHERE status = 'running'
-        AND heartbeat_at < NOW() - ($1 || ' seconds')::interval
+        AND heartbeat_at < NOW() - ($1 || '1 second')::interval
       `,
       [timeoutSeconds],
     );
