@@ -30,30 +30,30 @@ export class DeploymentLockService {
     const runner = this.dataSource.createQueryRunner();
     await runner.connect();
 
-    const result = await runner.query(
-      `SELECT pg_try_advisory_lock(hashtext($1)) AS "pg_try_advisory_lock"`,
-      [key],
-    );
-    const rows = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? []);
-    const acquired = Boolean(
-      rows[0] && typeof (rows[0] as any).pg_try_advisory_lock === 'boolean'
-        ? (rows[0] as any).pg_try_advisory_lock
-        : false,
-    );
+    try {
+      const result = await runner.query(`SELECT pg_try_advisory_lock(hashtext($1)) AS "acquired"`, [
+        key,
+      ]);
 
-    if (!acquired) {
-      await runner.release();
-      return { acquired: false, release: async () => {} };
-    }
+      const acquired = Boolean(result[0]?.acquired);
 
-    const release = async (): Promise<void> => {
-      try {
-        await runner.query(`SELECT pg_advisory_unlock(hashtext($1))`, [key]);
-      } finally {
+      if (!acquired) {
         await runner.release();
+        return { acquired: false, release: async () => {} };
       }
-    };
 
-    return { acquired: true, release };
+      const release = async (): Promise<void> => {
+        try {
+          await runner.query(`SELECT pg_advisory_unlock(hashtext($1))`, [key]);
+        } finally {
+          await runner.release();
+        }
+      };
+
+      return { acquired: true, release };
+    } catch (err) {
+      await runner.release();
+      throw err;
+    }
   }
 }
