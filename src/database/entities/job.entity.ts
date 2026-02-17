@@ -17,6 +17,7 @@ import { JobLog } from './job-log.entity';
  */
 @Entity('jobs')
 @Index(['status', 'priority', 'created_at'])
+@Index(['pipeline_run_id', 'stage_order', 'step_order'])
 @Index(['heartbeat_at'])
 export class Job {
   @PrimaryGeneratedColumn('uuid')
@@ -32,8 +33,16 @@ export class Job {
   @Column({ length: 100 })
   stage: string;
 
+  /** Order of stage in pipeline config (0-based). Used for stage gating at claim time. */
+  @Column({ type: 'int', default: 0 })
+  stage_order: number;
+
   @Column({ length: 255 })
   step_name: string;
+
+  /** Order of step within stage (0-based). Used for step ordering at claim time. */
+  @Column({ type: 'int', default: 0 })
+  step_order: number;
 
   @Column('text')
   command: string;

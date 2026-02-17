@@ -12,6 +12,8 @@ export class JobQueueService {
     stepName: string,
     command: string,
     priority: number,
+    stageOrder = 0,
+    stepOrder = 0,
   ) {
     const job = this.dataSource.manager.create(Job, {
       pipeline_run_id: pipelineRunId,
@@ -20,6 +22,8 @@ export class JobQueueService {
       command,
       status: 'pending',
       priority,
+      stage_order: stageOrder,
+      step_order: stepOrder,
       retry_count: 0,
       max_retries: 3,
       created_at: new Date(),
@@ -28,6 +32,10 @@ export class JobQueueService {
     return this.dataSource.manager.save(job);
   }
 
+  /**
+   * Claims the next claimable job: pending and "unlocked" (all earlier jobs in the same run
+   * by stage_order, step_order are terminal). Stage gating and step order enforced in Postgres.
+   */
   async claimNextJob(workerId: string): Promise<Job | null> {
     const result = await this.dataSource.query(
       `
@@ -38,10 +46,16 @@ export class JobQueueService {
           started_at = NOW(),
           status = 'running'
       WHERE id = (
-        SELECT id
-        FROM jobs
-        WHERE status = 'pending'
-        ORDER BY priority DESC, created_at ASC
+        SELECT j.id
+        FROM jobs j
+        WHERE j.status = 'pending'
+          AND NOT EXISTS (
+            SELECT 1 FROM jobs prev
+            WHERE prev.pipeline_run_id = j.pipeline_run_id
+              AND (prev.stage_order, prev.step_order) < (j.stage_order, j.step_order)
+              AND prev.status NOT IN ('success', 'failed', 'cancelled')
+          )
+        ORDER BY j.stage_order, j.step_order, j.priority DESC, j.created_at ASC
         FOR UPDATE SKIP LOCKED
         LIMIT 1
       )

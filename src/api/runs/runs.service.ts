@@ -74,17 +74,23 @@ export class RunsService {
 
     const config = pipeline.config as unknown as PipelineConfig | undefined;
     if (config?.stages?.length) {
-      for (const stage of config.stages) {
-        for (const step of stage.steps) {
-          await this.jobQueue.insertNewJob(
-            run.id,
-            stage.name,
-            step.name,
-            step.command,
-            step.priority ?? 5,
+      const inserts: Promise<unknown>[] = [];
+      config.stages.forEach((stage, stageIndex) => {
+        stage.steps.forEach((step, stepIndex) => {
+          inserts.push(
+            this.jobQueue.insertNewJob(
+              run.id,
+              stage.name,
+              step.name,
+              step.command,
+              step.priority ?? 5,
+              stageIndex,
+              stepIndex,
+            ),
           );
-        }
-      }
+        });
+      });
+      await Promise.all(inserts);
     }
 
     return run;
