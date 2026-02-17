@@ -1,6 +1,8 @@
-import { Job } from 'src/database/entities/job.entity';
+import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { Job } from 'src/database/entities/job.entity';
 
+@Injectable()
 export class JobQueueService {
   constructor(private readonly dataSource: DataSource) {}
 
@@ -98,9 +100,11 @@ export class JobQueueService {
       UPDATE jobs
       SET status = 'pending',
           claimed_by = NULL,
-          claimed_at = NULL
+          claimed_at = NULL,
+          retry_count = retry_count + 1
       WHERE status = 'running'
-        AND heartbeat_at < NOW() - ($1 || '1 second')::interval
+        AND heartbeat_at < NOW() - ($1::text || ' seconds')::interval
+        AND retry_count < max_retries
       `,
       [timeoutSeconds],
     );
