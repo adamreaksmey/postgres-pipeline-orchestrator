@@ -40,6 +40,55 @@ END;
 $$ LANGUAGE plpgsql;
 `;
 
+// Sync pipeline_runs.status/started_at/completed_at from jobs (DB is source of truth).
+// Job statuses: pending, running, success, failed, cancelled. Run statuses: same.
+const SYNC_PIPELINE_RUN_STATUS_TRIGGER_SQL = `
+CREATE OR REPLACE FUNCTION sync_pipeline_run_status_from_jobs()
+RETURNS TRIGGER AS $$
+DECLARE
+  run_id uuid := COALESCE(NEW.pipeline_run_id, OLD.pipeline_run_id);
+  has_running boolean;
+  all_terminal boolean;
+  has_failed boolean;
+BEGIN
+  -- Any job running → run is running, set started_at if null
+  SELECT EXISTS (
+    SELECT 1 FROM jobs WHERE pipeline_run_id = run_id AND status = 'running'
+  ) INTO has_running;
+
+  IF has_running THEN
+    UPDATE pipeline_runs
+    SET status = 'running',
+        started_at = COALESCE(started_at, NOW())
+    WHERE id = run_id AND (status IS DISTINCT FROM 'running' OR started_at IS NULL);
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  -- All jobs terminal (success/failed/cancelled) → run is success or failed
+  SELECT
+    NOT EXISTS (SELECT 1 FROM jobs WHERE pipeline_run_id = run_id AND status NOT IN ('success', 'failed', 'cancelled')),
+    EXISTS (SELECT 1 FROM jobs WHERE pipeline_run_id = run_id AND status = 'failed')
+  INTO all_terminal, has_failed;
+
+  IF all_terminal THEN
+    UPDATE pipeline_runs
+    SET status = CASE WHEN has_failed THEN 'failed' ELSE 'success' END,
+        completed_at = COALESCE(completed_at, NOW())
+    WHERE id = run_id;
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS jobs_sync_pipeline_run_status ON jobs;
+CREATE TRIGGER jobs_sync_pipeline_run_status
+  AFTER INSERT OR UPDATE OF status
+  ON jobs
+  FOR EACH ROW
+  EXECUTE PROCEDURE sync_pipeline_run_status_from_jobs();
+`;
+
 /**
  * Runs seed data on app startup. Inserts fake pipelines only if the pipelines table is empty.
  */
@@ -50,6 +99,7 @@ export class DatabaseSeedService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     await this.seedPipelinesIfEmpty();
     await this.ensurePipelineStatsMatView();
+    await this.ensureSyncPipelineRunStatusTrigger();
   }
 
   private async seedPipelinesIfEmpty(): Promise<void> {
@@ -64,11 +114,22 @@ export class DatabaseSeedService implements OnModuleInit {
   }
 
   /**
-   * Materialized view for dashboard stats (Postgres replaces Redis cache).
+   * Materialized view for dashboard stats.
    * Only run this in the API process (SYNC_DATABASE=true) to avoid multi-process DDL races.
    */
   private async ensurePipelineStatsMatView(): Promise<void> {
-    if (process.env.SYNC_DATABASE === 'false') return;
+    const syncDbStatus = process?.env?.SYNC_DATABASE;
+    if (!syncDbStatus || syncDbStatus === 'false') return;
     await this.dataSource.query(PIPELINE_STATS_MATVIEW_SQL);
+  }
+
+  /**
+   * Trigger on jobs: when any job becomes running → run = running + started_at;
+   * when all jobs terminal → run = success|failed + completed_at.
+   */
+  private async ensureSyncPipelineRunStatusTrigger(): Promise<void> {
+    const syncDbStatus = process?.env?.SYNC_DATABASE;
+    if (!syncDbStatus || syncDbStatus === 'false') return;
+    await this.dataSource.query(SYNC_PIPELINE_RUN_STATUS_TRIGGER_SQL);
   }
 }

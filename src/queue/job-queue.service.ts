@@ -57,11 +57,12 @@ export class JobQueueService {
     await this.dataSource.query(`UPDATE jobs SET heartbeat_at = NOW() WHERE id = $1`, [jobId]);
   }
 
+  /** Mark job as success (exit 0). Pipeline run status is updated by DB trigger. */
   async markCompleted(jobId: string, exitCode: number) {
     await this.dataSource.query(
       `
       UPDATE jobs
-      SET status = 'completed',
+      SET status = 'success',
           exit_code = $2,
           completed_at = NOW()
       WHERE id = $1
