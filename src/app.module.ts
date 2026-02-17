@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { LocksModule } from './locks/locks.module';
 import { PipelinesModule } from './api/pipelines/pipelines.module';
 import { RunsModule } from './api/runs/runs.module';
+import { WebhooksModule } from './api/webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { RunsModule } from './api/runs/runs.module';
     LocksModule,
     PipelinesModule,
     RunsModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

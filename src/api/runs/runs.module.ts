@@ -8,5 +8,6 @@ import { JobQueueService } from 'src/queue/job-queue.service';
   imports: [PipelinesModule],
   controllers: [RunsController],
   providers: [RunsService, JobQueueService],
+  exports: [RunsService],
 })
 export class RunsModule {}
