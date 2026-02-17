@@ -9,6 +9,7 @@ import { RunsModule } from './api/runs/runs.module';
 import { WebhooksModule } from './api/webhooks/webhooks.module';
 import { StreamingModule } from './streaming/streaming.module';
 import { WorkerModule } from './worker/worker.module';
+import { DashboardModule } from './api/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { WorkerModule } from './worker/worker.module';
     WebhooksModule,
     StreamingModule,
     WorkerModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

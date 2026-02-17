@@ -149,6 +149,7 @@ Why rely on Kafka, RabbitMQ, or Redis when your database is powerful enough to b
 - **Runs**: `GET /runs`, `GET /runs/:id`, `GET /runs/:id/jobs`, `POST /runs`
 - **Git webhook**: `POST /webhooks/git/push`
 - **Logs (SSE)**: `GET /stream/logs` and `GET /stream/logs/:jobId`
+- **Dashboard (MV)**: `GET /dashboard/pipeline-stats`, `POST /dashboard/pipeline-stats/refresh`
 - **Swagger**: `GET /docs` (and `GET /docs-json`)
 
 ---
