@@ -19,4 +19,10 @@ export class DashboardController {
     await this.dashboardService.refreshPipelineStats();
     return { ok: true };
   }
+
+  @Get('deployment-locks')
+  @ApiOperation({ summary: 'List current deployment locks (env, run, pipeline)' })
+  deploymentLocks() {
+    return this.dashboardService.listDeploymentLocks();
+  }
 }

@@ -66,7 +66,7 @@ export class JobExecutorService {
     try {
       if (job.stage === 'deploy') {
         const env = guessDeployEnvironment(job);
-        const lock = await this.locks.tryAcquire(env);
+        const lock = await this.locks.tryAcquire(env, job.pipeline_run_id);
         if (!lock.acquired) {
           await this.logStream.appendLog(job.id, `Deploy lock busy for ${env}; skipping`, 'warn');
           return 75; // EX_TEMPFAIL-like: caller can retry/requeue
