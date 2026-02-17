@@ -5,6 +5,29 @@ import { DeploymentLockService } from 'src/locks/deployment-lock.service';
 import { HeartbeatService } from './heartbeat.service';
 import { LogStreamService } from 'src/streaming/log-stream.service';
 
+function createLineBuffer(onLine: (line: string) => void) {
+  let buffer = '';
+
+  return {
+    write(chunk: string) {
+      buffer += chunk;
+
+      // Split into complete lines; keep the last partial line in buffer.
+      const parts = buffer.split(/\r?\n/);
+      buffer = parts.pop() ?? '';
+
+      for (const part of parts) {
+        onLine(part);
+      }
+    },
+    flush() {
+      const remaining = buffer;
+      buffer = '';
+      if (remaining.length > 0) onLine(remaining);
+    },
+  };
+}
+
 function guessDeployEnvironment(job: Job): string {
   // blueprint uses: "./deploy.sh production" / "./deploy.sh staging"
   const cmd = job.command?.trim() ?? '';
@@ -62,15 +85,34 @@ export class JobExecutorService {
           env: process.env,
         });
 
-        child.stdout?.on('data', (buf) => {
-          this.logStream.appendLog(job.id, buf.toString('utf8'), 'info').catch(() => {});
+        const stdoutBuffer = createLineBuffer((line) => {
+          this.logStream.appendLog(job.id, line, 'info').catch(() => {});
         });
-        child.stderr?.on('data', (buf) => {
-          this.logStream.appendLog(job.id, buf.toString('utf8'), 'error').catch(() => {});
+        const stderrBuffer = createLineBuffer((line) => {
+          this.logStream.appendLog(job.id, line, 'error').catch(() => {});
         });
 
-        child.on('close', (code) => resolve(code ?? 1));
-        child.on('error', () => resolve(1));
+        child.stdout?.on('data', (buf) => {
+          stdoutBuffer.write(buf.toString('utf8'));
+        });
+        child.stderr?.on('data', (buf) => {
+          stderrBuffer.write(buf.toString('utf8'));
+        });
+
+        child.on('close', (code) => {
+          // Flush any partial line that didn't end in \n
+          stdoutBuffer.flush();
+          stderrBuffer.flush();
+          resolve(code ?? 1);
+        });
+        child.on('error', (err) => {
+          stdoutBuffer.flush();
+          stderrBuffer.flush();
+          this.logStream
+            .appendLog(job.id, `Execution error: ${err.message}`, 'error')
+            .catch(() => {});
+          resolve(1);
+        });
       });
 
       return exitCode;
