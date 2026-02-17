@@ -5,6 +5,9 @@ import { DeploymentLockService } from 'src/locks/deployment-lock.service';
 import { HeartbeatService } from './heartbeat.service';
 import { LogStreamService } from 'src/streaming/log-stream.service';
 
+// I want to clarify that is simply a mock
+// and we wont actually be running actual deployment scripts
+
 function createLineBuffer(onLine: (line: string) => void) {
   let buffer = '';
 
