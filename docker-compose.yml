@@ -21,6 +21,7 @@ services:
     environment:
       DATABASE_URL: postgresql://admin:password@postgres:5432/cicd
       SYNC_DATABASE: 'true'
+      RUN_WORKER_LOOP: 'false'
       # POSTGRES_HOST: postgres
       # POSTGRES_PORT: 5432
       # POSTGRES_DB: cicd
@@ -36,6 +37,7 @@ services:
     environment:
       DATABASE_URL: postgresql://admin:password@postgres:5432/cicd
       SYNC_DATABASE: 'false'
+      RUN_WORKER_LOOP: 'true'
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,6 +48,7 @@ services:
     environment:
       DATABASE_URL: postgresql://admin:password@postgres:5432/cicd
       SYNC_DATABASE: 'false'
+      RUN_WORKER_LOOP: 'true'
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,6 +59,7 @@ services:
     environment:
       DATABASE_URL: postgresql://admin:password@postgres:5432/cicd
       SYNC_DATABASE: 'false'
+      RUN_WORKER_LOOP: 'true'
     depends_on:
       postgres:
         condition: service_healthy

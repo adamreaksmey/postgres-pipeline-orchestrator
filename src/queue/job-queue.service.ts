@@ -35,6 +35,7 @@ export class JobQueueService {
       SET claimed_by = $1,
           claimed_at = NOW(),
           heartbeat_at = NOW(),
+          started_at = NOW(),
           status = 'running'
       WHERE id = (
         SELECT id
