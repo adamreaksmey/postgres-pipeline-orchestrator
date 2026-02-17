@@ -1,6 +1,9 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Job } from './job.entity';
 
+/**
+ * One log line produced by a job (stdout/stderr). Used for streaming and full-text search.
+ */
 @Entity('job_logs')
 @Index(['job_id', 'timestamp'])
 export class JobLog {

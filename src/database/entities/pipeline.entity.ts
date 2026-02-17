@@ -8,6 +8,10 @@ import {
 } from 'typeorm';
 import { PipelineRun } from './pipeline-run.entity';
 
+/**
+ * Pipeline definition: one CI/CD pipeline per repo.
+ * Stores name, repository URL (for webhook matching), and config (stages, steps, env) as json.
+ */
 @Entity('pipelines')
 export class Pipeline {
   @PrimaryGeneratedColumn('uuid')

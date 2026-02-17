@@ -9,16 +9,19 @@ export class PipelinesService {
       .then((r) => r[0]);
   }
 
-  async createPipelineRun(pipelineId: string, payload: unknown) {
+  async createPipelineRun(
+    pipelineId: string,
+    triggerType: string,
+    triggerMetadata: Record<string, unknown> | null,
+  ) {
     const result = await this.dataSource.query(
       `
-      INSERT INTO pipeline_runs (pipeline_id, status, trigger_payload)
-      VALUES ($1, 'pending', $2)
+      INSERT INTO pipeline_runs (pipeline_id, trigger_type, trigger_metadata, status)
+      VALUES ($1, $2, $3, 'pending')
       RETURNING *
       `,
-      [pipelineId, payload],
+      [pipelineId, triggerType, triggerMetadata ?? {}],
     );
-
     return result[0];
   }
 }

@@ -11,6 +11,10 @@ import {
 import { PipelineRun } from './pipeline-run.entity';
 import { JobLog } from './job-log.entity';
 
+/**
+ * Job queue (outbox): one runnable unit (stage + step + command) per row.
+ * Workers claim via FOR UPDATE SKIP LOCKED; claimed_by/heartbeat_at support dead-worker reclaim.
+ */
 @Entity('jobs')
 @Index(['status', 'priority', 'created_at'])
 @Index(['heartbeat_at'])

@@ -1,6 +1,10 @@
 import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { PipelineRun } from './pipeline-run.entity';
 
+/**
+ * Tracks which pipeline run holds a deploy lock per environment (production, staging).
+ * Actual locking uses PostgreSQL advisory locks; this table is for visibility/audit.
+ */
 @Entity('deployment_locks')
 @Index(['expires_at'])
 export class DeploymentLock {

@@ -11,6 +11,10 @@ import { Pipeline } from './pipeline.entity';
 import { Job } from './job.entity';
 import { DeploymentLock } from './deployment-lock.entity';
 
+/**
+ * One execution of a pipeline (e.g. triggered by git push, manual, or scheduled).
+ * Holds trigger_type, trigger_metadata (commit, branch, author), and run status/timestamps.
+ */
 @Entity('pipeline_runs')
 export class PipelineRun {
   @PrimaryGeneratedColumn('uuid')

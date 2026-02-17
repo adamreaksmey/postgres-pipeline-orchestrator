@@ -1,5 +1,9 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
 
+/**
+ * Outbox for outgoing webhooks (e.g. Slack/Discord). Events enqueued here are POSTed
+ * by a worker with retries and exponential backoff; status/next_retry_at drive processing.
+ */
 @Entity('webhooks_outbox')
 @Index(['status', 'next_retry_at'])
 export class WebhookOutbox {
