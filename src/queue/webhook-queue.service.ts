@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { JobQueueService } from './job-queue.service';
-import { PipelinesService } from 'src/api/pipelines.service';
+import { PipelinesService } from 'src/api/pipelines/pipelines.service';
 import { WebhookOutbox } from 'src/database/entities/webhook-outbox.entity';
 import type { GitWebhookPayload, PipelineConfig } from './dto';
 
@@ -35,7 +35,7 @@ export class WebhookQueueService {
    * @throws if no pipeline found for payload.repo
    */
   async handleGitPush(payload: GitWebhookPayload): Promise<{ runId: string }> {
-    const pipeline = await this.pipelinesService.findPipeline(payload.repo);
+    const pipeline = await this.pipelinesService.findByRepository(payload.repo);
     if (!pipeline) {
       throw new Error(`No pipeline found for repo: ${payload.repo}`);
     }
@@ -45,7 +45,7 @@ export class WebhookQueueService {
       'git_push',
       payload as Record<string, unknown>,
     );
-    const config = pipeline.config as PipelineConfig;
+    const config = pipeline.config as unknown as PipelineConfig;
     if (!config?.stages?.length) {
       return { runId: run.id };
     }
