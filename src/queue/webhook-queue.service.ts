@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { JobQueueService } from './job-queue.service';
-import { PipelinesService } from 'src/api/pipelines/pipelines.service';
 import { WebhookOutbox } from 'src/database/entities/webhook-outbox.entity';
-import type { GitWebhookPayload, PipelineConfig } from './dto';
 
 /** One claimed webhook notification to send (from webhooks_outbox). */
 export interface WebhookOutboxItem {
@@ -16,63 +13,16 @@ export interface WebhookOutboxItem {
 }
 
 /**
- * 1) Handles incoming Git push webhooks → create pipeline run, enqueue jobs.
- * 2) Webhook outbox: enqueue notifications (e.g. pipeline.completed, job.failed)
- *    and process them (POST to webhook_url, retries with exponential backoff).
+ * Webhook outbox processor: enqueue notifications and process the queue.
+ * Workers call processOneWebhook() in a loop to POST to webhook_url (Slack/Discord etc.)
+ * with retries and exponential backoff.
  */
 @Injectable()
 export class WebhookQueueService {
-  constructor(
-    private readonly dataSource: DataSource,
-    private readonly jobQueue: JobQueueService,
-    private readonly pipelinesService: PipelinesService,
-  ) {}
-
-  // --- Git push handler (workflow steps 2–4) ---
-
-  /**
-   * Handle Git push: resolve pipeline, create run, enqueue jobs from config.
-   * @throws if no pipeline found for payload.repo
-   */
-  async handleGitPush(payload: GitWebhookPayload): Promise<{ runId: string }> {
-    const pipeline = await this.pipelinesService.findByRepository(payload.repo);
-    if (!pipeline) {
-      throw new Error(`No pipeline found for repo: ${payload.repo}`);
-    }
-
-    const run = await this.pipelinesService.createPipelineRun(
-      pipeline.id,
-      'git_push',
-      payload as Record<string, unknown>,
-    );
-    const config = pipeline.config as unknown as PipelineConfig;
-    if (!config?.stages?.length) {
-      return { runId: run.id };
-    }
-
-    await this.enqueueJobsFromPipeline(run.id, config);
-    return { runId: run.id };
-  }
-
-  private async enqueueJobsFromPipeline(runId: string, config: PipelineConfig): Promise<void> {
-    for (const stage of config.stages) {
-      for (const step of stage.steps) {
-        await this.jobQueue.insertNewJob(
-          runId,
-          stage.name,
-          step.name,
-          step.command,
-          step.priority ?? 5,
-        );
-      }
-    }
-  }
-
-  // --- Webhook outbox ---
+  constructor(private readonly dataSource: DataSource) {}
 
   /**
    * Enqueue a notification to send later (e.g. pipeline.completed, job.failed).
-   * A worker should call processOneWebhook() in a loop to send these.
    */
   async enqueueNotification(
     eventType: string,
@@ -145,7 +95,7 @@ export class WebhookQueueService {
 
   /**
    * Process one webhook: claim, POST to webhook_url, mark processed or failed.
-   * Call this in a worker loop to drain the outbox (Slack/Discord notifications).
+   * Call in a worker loop to drain the outbox.
    */
   async processOneWebhook(): Promise<boolean> {
     const item = await this.claimNextWebhook();
@@ -167,7 +117,7 @@ export class WebhookQueueService {
       return true;
     } catch {
       await this.markWebhookFailed(item.id);
-      return true; // we processed the row (attempted send)
+      return true;
     }
   }
 
