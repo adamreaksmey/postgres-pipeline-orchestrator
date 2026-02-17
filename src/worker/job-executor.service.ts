@@ -45,7 +45,7 @@ function guessDeployEnvironment(job: Job): string {
 
 /**
  * Executes a job command and streams logs.
- * Deploy jobs are guarded by PostgreSQL advisory locks via DeploymentLockService.
+ * Deploy jobs are guarded by PostgreSQL advisory locks, see @DeploymentLockService for more details
  */
 @Injectable()
 export class JobExecutorService {
