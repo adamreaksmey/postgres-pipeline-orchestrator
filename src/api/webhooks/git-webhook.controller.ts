@@ -1,4 +1,5 @@
 import { Controller, Post, Body, BadRequestException, NotFoundException } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PipelinesService } from 'src/api/pipelines/pipelines.service';
 import { RunsService } from 'src/api/runs/runs.service';
 
@@ -27,6 +28,7 @@ function getRepoFromPayload(body: Record<string, unknown>): string | null {
 }
 
 @Controller('webhooks/git')
+@ApiTags('webhooks')
 export class GitWebhookController {
   constructor(
     private readonly pipelinesService: PipelinesService,
@@ -38,6 +40,12 @@ export class GitWebhookController {
    * Resolves pipeline by repository and triggers a run (create run + enqueue jobs).
    */
   @Post('push')
+  @ApiOperation({ summary: 'Receive a git push webhook and trigger a run' })
+  @ApiBody({
+    description:
+      'GitHub/GitLab push payload. We derive repo from repo/repository/project fields and store the full body in trigger_metadata.',
+    schema: { type: 'object', additionalProperties: true },
+  })
   async handlePush(@Body() body: Record<string, unknown>) {
     const repo = getRepoFromPayload(body);
     if (!repo) {
