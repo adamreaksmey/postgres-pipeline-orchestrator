@@ -7,6 +7,7 @@ import { LocksModule } from './locks/locks.module';
 import { PipelinesModule } from './api/pipelines/pipelines.module';
 import { RunsModule } from './api/runs/runs.module';
 import { WebhooksModule } from './api/webhooks/webhooks.module';
+import { StreamingModule } from './streaming/streaming.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { WebhooksModule } from './api/webhooks/webhooks.module';
     PipelinesModule,
     RunsModule,
     WebhooksModule,
+    StreamingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
