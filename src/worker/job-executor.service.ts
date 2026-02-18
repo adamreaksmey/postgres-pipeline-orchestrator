@@ -60,47 +60,60 @@ export class JobExecutorService {
    * Caller is responsible for marking the job completed/failed in the queue.
    */
   async execute(job: Job, workerId: string): Promise<number> {
+    const jobId = job?.id ?? (job as unknown as Record<string, unknown>)?.id;
+    const command = String(
+      job?.command ?? (job as unknown as Record<string, unknown>)?.command ?? '',
+    );
+    if (!jobId) {
+      return 1;
+    }
+
+    const runId =
+      job?.pipeline_run_id ?? (job as unknown as Record<string, unknown>)?.pipeline_run_id;
+
     let lockRelease: (() => Promise<void>) | null = null;
     let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
     try {
       if (job.stage === 'deploy') {
         const env = guessDeployEnvironment(job);
-        const lock = await this.locks.tryAcquire(env, job.pipeline_run_id);
+        const lock = await this.locks.tryAcquire(env, runId != null ? String(runId) : undefined);
         if (!lock.acquired) {
-          await this.logStream.appendLog(job.id, `Deploy lock busy for ${env}; skipping`, 'warn');
+          await this.logStream.appendLog(
+            String(jobId),
+            `Deploy lock busy for ${env}; skipping`,
+            'warn',
+          );
           return 75; // EX_TEMPFAIL-like: caller can retry/requeue
         }
         lockRelease = lock.release;
-        await this.logStream.appendLog(job.id, `Acquired deploy lock for ${env}`, 'info');
+        await this.logStream.appendLog(String(jobId), `Acquired deploy lock for ${env}`, 'info');
       }
 
       // Heartbeat while running
       heartbeatTimer = setInterval(() => {
-        this.heartbeat.tick(job.id).catch(() => {});
+        this.heartbeat.tick(String(jobId)).catch(() => {});
       }, 10_000);
 
-      await this.logStream.appendLog(job.id, `worker=${workerId} exec: ${job.command}`, 'info');
+      await this.logStream.appendLog(String(jobId), `worker=${workerId} exec: ${command}`, 'info');
 
       const exitCode = await new Promise<number>((resolve) => {
-        const child = spawn(job.command, {
+        const child = spawn(command, {
           shell: true,
           env: process.env,
         });
 
         const stdoutBuffer = createLineBuffer((line) => {
-          this.logStream.appendLog(job.id, line, 'info').catch(() => {});
+          this.logStream.appendLog(String(jobId), line, 'info').catch(() => {});
         });
         const stderrBuffer = createLineBuffer((line) => {
-          this.logStream.appendLog(job.id, line, 'error').catch(() => {});
+          this.logStream.appendLog(String(jobId), line, 'error').catch(() => {});
         });
 
-        child.stdout?.on('data', (buf) => {
-          stdoutBuffer.write(buf.toString('utf8'));
-        });
-        child.stderr?.on('data', (buf) => {
-          stderrBuffer.write(buf.toString('utf8'));
-        });
+        if (child.stdout)
+          child.stdout.on('data', (buf) => stdoutBuffer.write(buf.toString('utf8')));
+        if (child.stderr)
+          child.stderr.on('data', (buf) => stderrBuffer.write(buf.toString('utf8')));
 
         child.on('close', (code) => {
           // Flush any partial line that didn't end in \n
@@ -112,7 +125,7 @@ export class JobExecutorService {
           stdoutBuffer.flush();
           stderrBuffer.flush();
           this.logStream
-            .appendLog(job.id, `Execution error: ${err.message}`, 'error')
+            .appendLog(String(jobId), `Execution error: ${err.message}`, 'error')
             .catch(() => {});
           resolve(1);
         });

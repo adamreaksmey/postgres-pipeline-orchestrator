@@ -58,7 +58,19 @@ export class JobQueueService {
       [workerId],
     );
 
-    return result[0] ?? null;
+    const row = result[0] ?? null;
+    if (!row) return null;
+    return this.normalizeJobRow(row) as unknown as Job;
+  }
+
+  /** Raw pg row may have different key casing; ensure id/command exist for executor and appendLog. */
+  private normalizeJobRow(row: Record<string, unknown>): Record<string, unknown> {
+    return {
+      ...row,
+      id: row.id ?? row.Id,
+      command: row.command ?? row.Command ?? '',
+      stage: row.stage ?? row.Stage ?? '',
+    };
   }
 
   async updateHeartbeat(jobId: string) {

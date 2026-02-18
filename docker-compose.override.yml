@@ -13,4 +13,4 @@ services:
     environment:
       DATABASE_URL: postgresql://admin:password@postgres:5432/cicd
       SYNC_DATABASE: 'true'
-      RUN_WORKER_LOOP: 'true'
+      RUN_WORKER_LOOP: 'false' # for main api, ensure it stays false so it only serves api requests. let the workers do the heavy work

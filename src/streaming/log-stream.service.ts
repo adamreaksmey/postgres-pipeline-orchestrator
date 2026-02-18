@@ -143,8 +143,12 @@ export class LogStreamService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Persist a log line only. Postgres trigger NOTIFYs; we do not publish from the app.
+   * Skips insert when jobId is missing (avoids not-null violation; raw row may have different shape).
    */
   async appendLog(jobId: string, logLine: string, logLevel = 'info'): Promise<{ id: string }> {
+    if (jobId == null || jobId === '') {
+      return { id: '' };
+    }
     const result = await this.dataSource.query(
       `INSERT INTO job_logs (job_id, log_line, log_level) VALUES ($1, $2, $3) RETURNING id`,
       [jobId, logLine, logLevel],
