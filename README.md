@@ -1,7 +1,6 @@
-
 # Mini-Jenkin — CI/CD Pipeline Orchestrator
 
-> *A lightweight CI/CD orchestrator that runs entirely on PostgreSQL — no Kafka, Redis, or RabbitMQ needed.*
+> _A lightweight CI/CD orchestrator that runs entirely on PostgreSQL — no Kafka, Redis, or RabbitMQ needed._
 
 Most teams add distributed infrastructure way before they actually need it. Mini-Jenkin goes the other way: **see how far your existing stack can take you first, then bring in new tools only when you have a real reason to.**
 
@@ -75,10 +74,10 @@ Full schema, indexes, SQL patterns, NestJS module layout, and stress scenarios a
 docker compose up -d
 ```
 
-| Service    | URL / Address                          |
-| ---------- | -------------------------------------- |
-| API        | http://localhost:3000                  |
-| Swagger UI | http://localhost:3000/docs             |
+| Service    | URL / Address                                                   |
+| ---------- | --------------------------------------------------------------- |
+| API        | http://localhost:3000                                           |
+| Swagger UI | http://localhost:3000/docs                                      |
 | PostgreSQL | localhost:5432 · DB `cicd` · user `admin` · password `password` |
 
 The Swagger path is configurable via `SWAGGER_PATH` if you want to change it.
@@ -111,12 +110,12 @@ RUN_WORKER_LOOP=true npm run start:worker
 
 ## Reliability
 
-| Concern               | Mechanism                                              |
-| --------------------- | ------------------------------------------------------ |
-| Duplicate job claims  | `FOR UPDATE SKIP LOCKED` — atomic, no double-pick      |
+| Concern                 | Mechanism                                                |
+| ----------------------- | -------------------------------------------------------- |
+| Duplicate job claims    | `FOR UPDATE SKIP LOCKED` — atomic, no double-pick        |
 | Stuck / crashed workers | Heartbeat timestamps; other workers reclaim expired jobs |
-| Deploy race conditions | Advisory locks — one winner per environment            |
-| Missed notifications  | Outbox table with retry loop                           |
+| Deploy race conditions  | Advisory locks — one winner per environment              |
+| Missed notifications    | Outbox table with retry loop                             |
 
 ---
 
@@ -136,20 +135,20 @@ Refresh strategies and view definitions are in [`blueprint.md`](./mini-jenkin/bl
 
 ## API Reference
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/pipelines` | Pipeline CRUD |
-| `GET` | `/runs` | List pipeline runs |
-| `GET` | `/runs/:id` | Run details |
-| `GET` | `/runs/:id/jobs` | Jobs for a run |
-| `POST` | `/runs` | Trigger a run manually |
-| `POST` | `/webhooks/git/push` | Git push webhook |
-| `GET` | `/stream/logs` | SSE — all job logs |
-| `GET` | `/stream/logs/:jobId` | SSE — logs for one job |
-| `GET` | `/dashboard/pipeline-stats` | Materialized view stats |
-| `POST` | `/dashboard/pipeline-stats/refresh` | Refresh materialized view |
-| `GET` | `/docs` | Swagger UI |
-| `GET` | `/docs-json` | OpenAPI JSON |
+| Method                  | Path                                | Description               |
+| ----------------------- | ----------------------------------- | ------------------------- |
+| `GET/POST/PATCH/DELETE` | `/pipelines`                        | Pipeline CRUD             |
+| `GET`                   | `/runs`                             | List pipeline runs        |
+| `GET`                   | `/runs/:id`                         | Run details               |
+| `GET`                   | `/runs/:id/jobs`                    | Jobs for a run            |
+| `POST`                  | `/runs`                             | Trigger a run manually    |
+| `POST`                  | `/webhooks/git/push`                | Git push webhook          |
+| `GET`                   | `/stream/logs`                      | SSE — all job logs        |
+| `GET`                   | `/stream/logs/:jobId`               | SSE — logs for one job    |
+| `GET`                   | `/dashboard/pipeline-stats`         | Materialized view stats   |
+| `POST`                  | `/dashboard/pipeline-stats/refresh` | Refresh materialized view |
+| `GET`                   | `/docs`                             | Swagger UI                |
+| `GET`                   | `/docs-json`                        | OpenAPI JSON              |
 
 ---
 

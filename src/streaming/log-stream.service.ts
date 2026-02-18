@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
-import { Pool, PoolClient } from 'pg';
+import { Notification, Pool, PoolClient } from 'pg';
 import { Observable, Subject } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
@@ -111,7 +111,7 @@ export class LogStreamService implements OnModuleInit, OnModuleDestroy {
     const pool = this.getPool();
     this.listenClient = await pool.connect();
 
-    this.listenClient.on('notification', (msg) => {
+    this.listenClient.on('notification', (msg: Notification) => {
       if (msg.channel !== LOG_CHANNEL || !msg.payload) return;
       try {
         const event = JSON.parse(msg.payload) as LogStreamEvent;
