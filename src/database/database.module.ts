@@ -12,8 +12,7 @@ import { DatabaseSeedService } from './database-seed.service';
         type: 'postgres',
         url: config.get('DATABASE_URL'),
         entities: [Pipeline, PipelineRun, Job, JobLog, DeploymentLock, WebhookOutbox],
-        // Only one process should synchronize the database (see SYNC_DATABASE in docker compose)
-        synchronize: config.get('SYNC_DATABASE') !== 'false',
+        synchronize: config.get('SYNC_DATABASE') === 'true',
       }),
       inject: [ConfigService],
     }),

@@ -72,7 +72,11 @@ export class LogStreamService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     await this.ensureNotifyTrigger();
-    await this.startListening();
+    if (this.shouldRunTriggerDdl()) await this.startListening();
+  }
+
+  private shouldRunTriggerDdl(): boolean {
+    return process.env.SYNC_DATABASE === 'true';
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -89,8 +93,14 @@ export class LogStreamService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Ensure Postgres trigger exists: NOTIFY on INSERT into job_logs (DB as event emitter).
+   * Only run in one process (e.g. API with SYNC_DATABASE) to avoid concurrent DDL errors in workers.
    */
   private async ensureNotifyTrigger(): Promise<void> {
+    if (!this.shouldRunTriggerDdl()) return;
+
+    // Advisory lock: only one process runs DDL at a time.
+    // bugfix here was applied because running this in multiple processes was causing concurrent DDL errors.
+    await this.dataSource.query(`SELECT pg_advisory_xact_lock(123456789)`);
     await this.dataSource.query(JOB_LOGS_NOTIFY_TRIGGER_SQL);
   }
 

@@ -97,6 +97,7 @@ export class DatabaseSeedService implements OnModuleInit {
   constructor(private readonly dataSource: DataSource) {}
 
   async onModuleInit(): Promise<void> {
+    if (process.env.SYNC_DATABASE !== 'true') return;
     await this.seedPipelinesIfEmpty();
     await this.ensurePipelineStatsMatView();
     await this.ensureSyncPipelineRunStatusTrigger();
@@ -114,22 +115,16 @@ export class DatabaseSeedService implements OnModuleInit {
   }
 
   /**
-   * Materialized view for dashboard stats.
-   * Only run this in the API process (SYNC_DATABASE=true) to avoid multi-process DDL races.
+   * Materialized view for dashboard stats. Only run when SYNC_DATABASE === 'true' (single process).
    */
   private async ensurePipelineStatsMatView(): Promise<void> {
-    const syncDbStatus = process?.env?.SYNC_DATABASE;
-    if (!syncDbStatus || syncDbStatus === 'false') return;
     await this.dataSource.query(PIPELINE_STATS_MATVIEW_SQL);
   }
 
   /**
-   * Trigger on jobs: when any job becomes running → run = running + started_at;
-   * when all jobs terminal → run = success|failed + completed_at.
+   * Trigger on jobs: sync pipeline_run status from jobs. Only run when SYNC_DATABASE === 'true'.
    */
   private async ensureSyncPipelineRunStatusTrigger(): Promise<void> {
-    const syncDbStatus = process?.env?.SYNC_DATABASE;
-    if (!syncDbStatus || syncDbStatus === 'false') return;
     await this.dataSource.query(SYNC_PIPELINE_RUN_STATUS_TRIGGER_SQL);
   }
 }
