@@ -17,5 +17,6 @@ async function bootstrap() {
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
   console.log(`Swagger: http://localhost:${port}/${swaggerPath}`);
+  console.log(`Worker loop run status: ${process.env.RUN_WORKER_LOOP}`);
 }
 bootstrap();
