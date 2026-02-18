@@ -1,14 +1,15 @@
+
 # Mini-Jenkin — CI/CD Pipeline Orchestrator
 
-> *A lightweight CI/CD orchestrator that uses PostgreSQL as its queue, pub/sub bus, lock server, and analytics engine — no Kafka, Redis, or RabbitMQ required.*
+> *A lightweight CI/CD orchestrator that runs entirely on PostgreSQL — no Kafka, Redis, or RabbitMQ needed.*
 
-Most teams reach for distributed infrastructure before they've truly tested what they already have. Mini-Jenkin is a deliberate experiment in the opposite direction: **push your current stack to its limits first, then add new technology only when you have a clear reason to.**
+Most teams add distributed infrastructure way before they actually need it. Mini-Jenkin goes the other way: **see how far your existing stack can take you first, then bring in new tools only when you have a real reason to.**
 
-PostgreSQL is far more capable than we usually ask of it. This project puts those capabilities front and center:
+Turns out Postgres can do a lot more than we usually ask of it. This project leans into that:
 
 - **Queue** — jobs claimed with `SELECT ... FOR UPDATE SKIP LOCKED`
 - **Pub/Sub** — `LISTEN/NOTIFY` for real-time log streaming
-- **Locking** — advisory locks for safe deploy concurrency
+- **Locking** — advisory locks so deploys don't step on each other
 - **Reliability** — heartbeat-based retries and dead-worker reclaim
 - **Analytics** — materialized views, full-text search, and pipeline metrics
 
@@ -16,13 +17,13 @@ PostgreSQL is far more capable than we usually ask of it. This project puts thos
 
 ## Features
 
-- **Git webhooks** — Trigger pipelines automatically on push events
-- **Distributed job queue** — Workers claim jobs without conflicts or duplication
-- **Real-time log streaming** — Postgres triggers emit `NOTIFY` events; the API forwards them via SSE
-- **Deployment locking** — `pg_try_advisory_lock` ensures one active deploy per environment
-- **Dead worker recovery** — Heartbeats allow other workers to reclaim stuck jobs
-- **Reliable outbound notifications** — Outbox table guarantees Slack/Discord delivery with retries
-- **Dashboard metrics** — Queue depth, worker utilization, latency, and throughput via materialized views
+- **Git webhooks** — pipelines kick off automatically on push
+- **Distributed job queue** — workers grab jobs without conflicts or duplication
+- **Real-time log streaming** — Postgres triggers fire `NOTIFY` events; the API ships them to clients via SSE
+- **Deployment locking** — `pg_try_advisory_lock` keeps one active deploy per environment
+- **Dead worker recovery** — heartbeats let other workers pick up where a crashed one left off
+- **Reliable notifications** — an outbox table makes sure your Slack/Discord messages actually get delivered
+- **Dashboard metrics** — queue depth, worker utilization, latency, and throughput from materialized views
 
 ---
 
@@ -55,9 +56,9 @@ PostgreSQL is far more capable than we usually ask of it. This project puts thos
       Worker 1       Worker 2       Worker N
 ```
 
-PostgreSQL is the heart of the system. There is nothing else in the critical path.
+Postgres is the whole show here. Nothing else in the critical path.
 
-Full schema, indexes, SQL patterns, NestJS module layout, and stress scenarios are documented in [`mini-jenkin/blueprint.md`](./mini-jenkin/blueprint.md).
+Full schema, indexes, SQL patterns, NestJS module layout, and stress scenarios are in [`mini-jenkin/blueprint.md`](./mini-jenkin/blueprint.md).
 
 ---
 
@@ -66,7 +67,7 @@ Full schema, indexes, SQL patterns, NestJS module layout, and stress scenarios a
 ### Prerequisites
 
 - Docker & Docker Compose
-- Node.js 18+ (for local development outside Docker)
+- Node.js 18+ (for local dev outside Docker)
 
 ### Quick Start
 
@@ -80,7 +81,7 @@ docker compose up -d
 | Swagger UI | http://localhost:3000/docs             |
 | PostgreSQL | localhost:5432 · DB `cicd` · user `admin` · password `password` |
 
-The Swagger path is configurable via the `SWAGGER_PATH` environment variable.
+The Swagger path is configurable via `SWAGGER_PATH` if you want to change it.
 
 ### Running Locally (without Docker)
 
@@ -92,7 +93,7 @@ cp .env.example .env   # then edit DATABASE_URL
 # 3. Start the API
 npm run start:dev
 
-# 4. Start one or more workers (multiple instances simulate a distributed pool)
+# 4. Start one or more workers (spin up multiple to simulate a distributed pool)
 RUN_WORKER_LOOP=true npm run start:worker
 ```
 
@@ -100,11 +101,11 @@ RUN_WORKER_LOOP=true npm run start:worker
 
 ## How It Works
 
-1. **Trigger** — A git push sends a webhook to the API, which creates a `pipeline_run` and enqueues jobs.
-2. **Claim** — Workers race to claim jobs using `SELECT ... FOR UPDATE SKIP LOCKED`; only one worker wins each row.
-3. **Stream** — Log entries are written to `job_logs`; a Postgres trigger fires `NOTIFY job_logs`; the API forwards events to connected clients via SSE.
-4. **Lock** — Deploy jobs call `pg_try_advisory_lock` so only one deploy runs per environment at a time.
-5. **Deliver** — Outbound Slack/Discord notifications are written to an outbox table and retried until confirmed.
+1. **Trigger** — a git push hits the webhook, which creates a `pipeline_run` and queues up jobs
+2. **Claim** — workers race to grab jobs with `SELECT ... FOR UPDATE SKIP LOCKED`; only one wins each row
+3. **Stream** — logs land in `job_logs`, a Postgres trigger fires `NOTIFY job_logs`, and the API streams them to clients via SSE
+4. **Lock** — deploy jobs use `pg_try_advisory_lock` so only one deploy runs per environment at a time
+5. **Deliver** — Slack/Discord notifications go into an outbox table and get retried until they stick
 
 ---
 
@@ -121,13 +122,13 @@ RUN_WORKER_LOOP=true npm run start:worker
 
 ## Dashboard Metrics
 
-All metrics are served from materialized views and refreshed on demand.
+All metrics come from materialized views, refreshed on demand.
 
 - **Queue depth** — pending jobs waiting to be claimed
-- **Worker utilization** — active jobs relative to active workers
+- **Worker utilization** — active jobs vs. active workers
 - **Job latency** — time from creation to first claim
 - **Throughput & success rate** — jobs/sec, pass/fail ratio
-- **Lock contention** — how often deploys are blocked
+- **Lock contention** — how often deploys are getting blocked
 
 Refresh strategies and view definitions are in [`blueprint.md`](./mini-jenkin/blueprint.md).
 
@@ -160,7 +161,7 @@ The repo includes `docker-compose.override.yml` which mounts the source tree and
 docker compose up --build
 ```
 
-If you modify `package.json`, rebuild the API image explicitly:
+If you change `package.json`, rebuild the API image explicitly:
 
 ```bash
 docker compose up --build api
@@ -170,8 +171,8 @@ docker compose up --build api
 
 ## Philosophy
 
-Kafka, Redis, and RabbitMQ are excellent tools — when you actually need them. The problem is that we often add them out of habit or anticipation rather than necessity, before we've understood what our existing infrastructure can do.
+Kafka, Redis, and RabbitMQ are great — when you actually need them. The thing is, a lot of teams reach for them out of habit or just-in-case thinking, before really understanding what their existing setup can handle.
 
-Mini-Jenkin is a concrete argument for a different default: **start with what you have, understand it deeply, and only introduce new systems when you've hit a real wall.** Postgres is running in almost every production stack. It has a job queue, a pub/sub bus, a distributed lock server, and an analytics engine built in. Most teams never use them.
+Mini-Jenkin bets on a different default: **start with what you've got, really get to know it, and only add new systems when you've hit an actual wall.** Postgres is already running in almost every production stack. It's got a job queue, pub/sub, distributed locking, and analytics built right in. Most teams just never use any of it.
 
-This project does. Not because Postgres is always the right answer — but because knowing what it can do makes you a better judge of when it isn't.
+This project does. Not because Postgres is always the answer — but because knowing what it's capable of makes you a way better judge of when it's not.
