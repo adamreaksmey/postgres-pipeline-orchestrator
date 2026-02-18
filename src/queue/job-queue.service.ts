@@ -15,21 +15,15 @@ export class JobQueueService {
     stageOrder = 0,
     stepOrder = 0,
   ) {
-    const job = this.dataSource.manager.create(Job, {
-      pipeline_run_id: pipelineRunId,
-      stage,
-      step_name: stepName,
-      command,
-      status: 'pending',
-      priority,
-      stage_order: stageOrder,
-      step_order: stepOrder,
-      retry_count: 0,
-      max_retries: 3,
-      created_at: new Date(),
-    });
-
-    return this.dataSource.manager.save(job);
+    const result = await this.dataSource.query(
+      `INSERT INTO jobs (
+         pipeline_run_id, stage, step_name, command, status, priority,
+         stage_order, step_order, retry_count, max_retries
+       ) VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, 0, 3)
+       RETURNING *`,
+      [pipelineRunId, stage, stepName, command, priority, stageOrder, stepOrder],
+    );
+    return result[0];
   }
 
   /**

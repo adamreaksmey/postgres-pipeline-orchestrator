@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { WebhookOutbox } from 'src/database/entities/webhook-outbox.entity';
 
 /** One claimed webhook notification to send (from webhooks_outbox). */
 export interface WebhookOutboxItem {
@@ -29,17 +28,14 @@ export class WebhookQueueService {
     payload: Record<string, unknown>,
     webhookUrl: string,
     maxRetries = 5,
-  ): Promise<WebhookOutbox> {
-    const row = this.dataSource.manager.create(WebhookOutbox, {
-      event_type: eventType,
-      payload,
-      webhook_url: webhookUrl,
-      status: 'pending',
-      retry_count: 0,
-      max_retries: maxRetries,
-      next_retry_at: new Date(),
-    });
-    return this.dataSource.manager.save(row);
+  ) {
+    const result = await this.dataSource.query(
+      `INSERT INTO webhooks_outbox (event_type, payload, webhook_url, status, retry_count, max_retries, next_retry_at)
+       VALUES ($1, $2::jsonb, $3, 'pending', 0, $4, NOW())
+       RETURNING *`,
+      [eventType, JSON.stringify(payload), webhookUrl, maxRetries],
+    );
+    return result[0];
   }
 
   /**

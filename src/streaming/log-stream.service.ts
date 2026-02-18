@@ -4,7 +4,6 @@ import { DataSource } from 'typeorm';
 import { Pool, PoolClient } from 'pg';
 import { Observable, Subject } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { JobLog } from 'src/database/entities/job-log.entity';
 
 const LOG_CHANNEL = 'job_logs';
 
@@ -136,13 +135,10 @@ export class LogStreamService implements OnModuleInit, OnModuleDestroy {
    * Persist a log line only. Postgres trigger NOTIFYs; we do not publish from the app.
    */
   async appendLog(jobId: string, logLine: string, logLevel = 'info'): Promise<{ id: string }> {
-    const repo = this.dataSource.getRepository(JobLog);
-    const log = repo.create({
-      job_id: jobId,
-      log_line: logLine,
-      log_level: logLevel,
-    });
-    const saved = await repo.save(log);
-    return { id: saved.id };
+    const result = await this.dataSource.query(
+      `INSERT INTO job_logs (job_id, log_line, log_level) VALUES ($1, $2, $3) RETURNING id`,
+      [jobId, logLine, logLevel],
+    );
+    return { id: String(result[0]?.id ?? '') };
   }
 }
